@@ -14,6 +14,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,7 @@ import kotlin.math.sqrt
 
 private const val PREFS_NAME = "solid_bg_prefs"
 private const val KEY_COLOR = "bg_color"
+private const val KEY_SAVED = "saved_colors"
 private const val MENU_TIMEOUT_MS = 10_000L
 private const val SWIPE_STREAK_WINDOW_MS = 4_000L
 
@@ -64,12 +66,14 @@ class MainActivity : ComponentActivity() {
 
     private var barsVisible = false
     private var backgroundColor = AColor.BLACK
+    private var savedColors: List<Int> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         backgroundColor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             .getInt(KEY_COLOR, AColor.BLACK)
+        savedColors = readSavedColors()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = AColor.TRANSPARENT
@@ -80,6 +84,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             SolidBgApp(
                 initialColor = startColor,
+                initialSaved = savedColors,
+                onSavedColorsChanged = { list ->
+                    savedColors = list
+                    writeSavedColors(list)
+                },
                 onColorChanged = { color ->
                     backgroundColor = color
                     applySystemBars()
@@ -125,16 +134,32 @@ class MainActivity : ComponentActivity() {
         controller.isAppearanceLightStatusBars = lightIcons
         controller.isAppearanceLightNavigationBars = lightIcons
     }
+
+    private fun readSavedColors(): List<Int> {
+        val raw = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getString(KEY_SAVED, "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        return raw.split(',').mapNotNull { it.trim().toIntOrNull() }.take(24)
+    }
+
+    private fun writeSavedColors(list: List<Int>) {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SAVED, list.take(24).joinToString(","))
+            .apply()
+    }
 }
 
 @Composable
 private fun SolidBgApp(
     initialColor: Int,
+    initialSaved: List<Int>,
+    onSavedColorsChanged: (List<Int>) -> Unit,
     onColorChanged: (Int) -> Unit,
     onBarsVisibilityChanged: (Boolean) -> Unit,
     onExit: () -> Unit,
 ) {
     var bg by remember { mutableIntStateOf(initialColor) }
+    var savedColors by remember { mutableStateOf(initialSaved) }
     var barsVisible by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
@@ -229,6 +254,9 @@ private fun SolidBgApp(
                 awaitPointerEventScope {
                     while (true) {
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        // 按下时若已有浮层，本次手势完全交给浮层处理，
+                        // 避免「关掉菜单的那一下」又被背景手势当成点击而重新弹出
+                        val blockedAtDown = menuOpen || pickerOpen
                         var last = down.position
                         while (true) {
                             val event = awaitPointerEvent()
@@ -239,10 +267,10 @@ private fun SolidBgApp(
                                 break
                             }
                         }
+                        if (blockedAtDown) continue
                         val dx = last.x - down.position.x
                         val dy = last.y - down.position.y
                         val distance = sqrt(dx * dx + dy * dy)
-                        if (menuOpen || pickerOpen) continue
                         if (distance >= swipeThreshold) {
                             onSystemBarGesture()
                         } else {
@@ -287,6 +315,7 @@ private fun SolidBgApp(
                     menuOpen = false
                     pickerOpen = true
                 },
+                onClose = { menuOpen = false },
                 onExit = onExit
             )
         }
@@ -294,7 +323,18 @@ private fun SolidBgApp(
         if (pickerOpen) {
             ColorPickerPanel(
                 color = bg,
+                savedColors = savedColors,
                 onChange = { bg = it },
+                onSaveColor = { argb ->
+                    val next = (listOf(argb) + savedColors.filter { it != argb }).take(SAVED_LIMIT)
+                    savedColors = next
+                    onSavedColorsChanged(next)
+                },
+                onRemoveSaved = { argb ->
+                    val next = savedColors.filter { it != argb }
+                    savedColors = next
+                    onSavedColorsChanged(next)
+                },
                 onClose = { pickerOpen = false }
             )
         }
@@ -306,15 +346,17 @@ private fun MenuCard(
     remainMs: Int,
     onInteract: () -> Unit,
     onPalette: () -> Unit,
+    onClose: () -> Unit,
     onExit: () -> Unit,
 ) {
     val seconds = (remainMs + 999) / 1000
+    val p = panelPalette()
     Column(
         modifier = Modifier
             .width(294.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(Color(0xF01A1A1E))
-            .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(26.dp))
+            .background(p.menuBg)
+            .border(1.dp, p.border, RoundedCornerShape(26.dp))
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -326,16 +368,33 @@ private fun MenuCard(
             .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "菜单",
-            color = Color(0xFFF3F3F5),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "菜单",
+                color = p.text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .width(26.dp)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(p.field)
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "✕", color = p.hint, fontSize = 12.sp)
+            }
+        }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "$seconds 秒未操作将自动关闭",
-            color = Color(0xFF9A9AA4),
+            text = "$seconds 秒后自动关闭",
+            color = p.hint,
             fontSize = 12.sp
         )
         Spacer(Modifier.height(16.dp))
@@ -343,9 +402,13 @@ private fun MenuCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutlinedButton(
+            Button(
                 onClick = onPalette,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = p.buttonBg,
+                    contentColor = p.buttonText
+                )
             ) {
                 Text("调色盘", fontSize = 13.sp)
             }
@@ -353,7 +416,7 @@ private fun MenuCard(
                 onClick = onExit,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE5484D),
+                    containerColor = p.danger,
                     contentColor = Color.White
                 )
             ) {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标背景层：四色对角满版铺满整个画布（半径 78 > 画布半对角线 76.4），
+     任何遮罩形状下都不会露出底色，也就不会出现黑环/黑边。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#FFE5484D"
+        android:pathData="M54,54 L-24,54 A78,78 0 0 1 54,-24 Z" />
+    <path
+        android:fillColor="#FFFFB020"
+        android:pathData="M54,54 L54,-24 A78,78 0 0 1 132,54 Z" />
+    <path
+        android:fillColor="#FF30D158"
+        android:pathData="M54,54 L132,54 A78,78 0 0 1 54,132 Z" />
+    <path
+        android:fillColor="#FF0A84FF"
+        android:pathData="M54,54 L54,132 A78,78 0 0 1 -24,54 Z" />
+</vector>

@@ -1,9 +1,9 @@
-# 纯色 · Solid Color
+# 色幕 · ColorCurtain
 
-一个「什么都没有」的 Android App：打开就是一块纯色屏幕，无状态栏、无导航栏、无任何控件。
-用于护眼垫色、屏幕测试、投影背景、直播垫屏、旧手机当时钟背景等场景。
+把整块屏幕变成一张可调的纯色幕布。无状态栏、无导航栏、无任何控件。
+用于护眼垫色、屏幕测试、投影背景、直播/录屏垫底、旧手机当时钟背景等场景。
 
-> 纯色 · 默认黑色 · 沉浸式 · 支持分屏与小窗
+> 一屏之色 · 默认黑色 · 沉浸式 · 支持分屏与小窗
 
 ---
 
@@ -17,7 +17,14 @@
 | 状态栏图标自适应 | 显示系统栏时，状态栏/导航栏图标颜色会根据背景明暗自动切换黑/白 |
 | 中心点击菜单 | 点击屏幕中央区域（默认中央 50%×50%）弹出控制窗口，其他地方点击无反应 |
 | 10 秒自动关闭 | 菜单 10 秒无操作自动淡出；菜单内任何触摸都会重新计时，并实时显示剩余秒数 |
-| 调色盘 | 饱和度/明度面板 + 色相条 + 18 个预设色 + 十六进制值显示，拖动即时生效 |
+| 调色盘 | 饱和度/明度面板 + 色相条 + 8 个预设色，拖动即时生效；最宽 300dp 的小浮窗，小窗/分屏下也不占满屏 |
+| 浮窗不遮底 | 调色盘直接浮在纯色背景上、**没有压暗蒙版**，拖动时四周就是真实底色，所见即所得 |
+| 精准输入 | R/G/B 三个数字输入框（数字键盘）+ `#RRGGBB` 输入框，可直接打字取色 |
+| 保存颜色 | 上限 12 个，标题实时显示「已存 / 上限」；色板满时明确提示，**不会静默丢掉旧颜色** |
+| 删除二次确认 | 长按色块 → 弹确认框（取消 / 删除），不再一点就没 |
+| 跟随系统深色模式 | 调色盘与菜单的底色、文字、按钮全部随系统深色/浅色切换 |
+| 菜单可主动关闭 | 菜单右上角 ✕ 一键关闭，不必等 10 秒倒计时 |
+| 自适应图标 | 色轮前景 + 单色层，内容限制在 66dp 安全圆内，HyperOS 等圆角遮罩下不会出现黑边 |
 | 一键退出 | 菜单内「退出」按钮直接结束 App（`finishAffinity()`） |
 | 分屏 / 小窗 | `resizeableActivity="true"`、不锁定方向，小窗内调色盘自动滚动适配 |
 | 防误退出 | 返回手势（边缘滑动）被计为一次「滑动」，不会直接退出 App，退出只走菜单按钮 |
@@ -42,7 +49,10 @@
   任何触摸让 `idleTick` 自增，从而重置倒计时。
 - 调色盘：自绘 `Canvas`（水平白→色相渐变 + 垂直透明→黑渐变）实现 SV 面板，
   色相条为 7 段 HSV 渐变；取色/回填使用 `android.graphics.Color.colorToHSV / HSVToColor`。
-- 颜色持久化：`SharedPreferences`（`onPause` 写入，启动读取）。
+- 颜色持久化：`SharedPreferences`（`onPause` 写入，启动读取）；已保存色板存 `saved_colors`。
+- 图标：自适应图标（`mipmap-anydpi-v26/ic_launcher.xml` + `ic_launcher_foreground` 色轮 + `ic_launcher_monochrome` 单色层），
+  前景内容限制在中心 66dp 安全圆内，任何遮罩形状都不会裁出黑边。
+- 键盘：`Modifier.imePadding()` + 面板内滚动，小窗里弹出输入法也不会遮住输入框。
 - 状态栏图标：`WindowInsetsControllerCompat.isAppearanceLightStatusBars`，
   明暗判断用 `Color.luminance(argb) > 0.6`。
 
@@ -71,10 +81,12 @@ app/
     ├── AndroidManifest.xml
     ├── kotlin/com/example/solidbg/
     │   ├── MainActivity.kt     # 沉浸式、手势、菜单、倒计时
-    │   └── ColorPicker.kt      # 调色盘（SV 面板 / 色相条 / 预设）
+    │   └── ColorPicker.kt      # 调色盘（预览 / SV 面板 / 色相条 / 精准输入 / 预设 / 已保存）
     └── res/
-        ├── drawable/ic_solid.xml
-        └── values/{strings,themes}.xml
+        ├── drawable/ic_launcher_foreground.xml
+        ├── drawable/ic_launcher_monochrome.xml
+        ├── mipmap-anydpi-v26/ic_launcher.xml
+        └── values/{colors,strings,themes}.xml
 ```
 
 ## 可调参数
