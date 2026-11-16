@@ -1,0 +1,15 @@
+# 构建产物
+build/
+.gradle/
+*.apk
+*.aab
+*.jar
+
+# IDE / 平台缓存
+.platform/
+.idea/
+*.iml
+.DS_Store
+
+# 临时文件
+app/module.android.toml
